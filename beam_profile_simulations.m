@@ -1,5 +1,5 @@
 % Author: Dalton H Bermudez (UW Madison)
-% Accessment of simulated beam profile symmetry of real clinical beam profiles,
+% Accessment of simulated beam profile symmetry of beam profiles,
 % comparing proposed correlative symmetric index (CSI) with standard Point
 % wise Quotient and Area based metrics
 
