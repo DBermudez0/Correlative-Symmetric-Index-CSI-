@@ -990,6 +990,7 @@ area_quotient_1 = (right_area_1-left_area_1)./(right_area_1+left_area_1);
 difference_quotient_1 = (right_side_1 - inverted_left_side_1) ./ max([right_side_1, inverted_left_side_1]);
 inverted_left_side_1 = flip(left_side_1); % Vertically invert the left side
 [cross_corr_1,lag_1] = xcorr(right_side_1, inverted_left_side_1,'normalized');
+[CSI_1,lags_1] = high_intensity_CSI(right_side_1, inverted_left_side_1, .80,length(X1(X1>0)))
 C = cov(right_side_1,inverted_left_side_1, 1);
 signal1_2d = reshape(right_side_1, 1, []);
 signal2_2d = reshape(inverted_left_side_1, 1 ,[]);
@@ -1017,7 +1018,7 @@ grid on;
 
 % Plot the cross-correlation
 subplot(2,2,3);
-plot(X1(1:149), cross_corr_1, 'LineWidth', 2);
+plot(X1, CSI_1, 'LineWidth', 2);
 title('Cross-Correlation Between Right Side and Horizontal Inverted Left Side');
 xlabel('Position (cm)');
 ylabel('Cross-Correlation');
@@ -1039,6 +1040,7 @@ difference_quotient_2 = abs(right_side_2 - inverted_left_side_2 ) ./ max([right_
 % Point wise quotient based method
 inverted_left_side_2 = flip(left_side_2); % horizantally invert the left side
 [cross_corr_2, lag_2] = xcorr(right_side_2, inverted_left_side_2,'normalized');
+[CSI_2,lags_2] = high_intensity_CSI(right_side_2, inverted_left_side_2, .80,length(X2(X2>0)))
 signal1_2d = reshape(right_side_2, 1, []);
 signal2_2d = reshape(inverted_left_side_2, 1 ,[]);
 ssimValue_2 = ssim(signal1_2d, signal2_2d , 'exp', [1,1, 1])
@@ -1055,7 +1057,7 @@ hold off;
 
 % Plot the pointwise difference quotient
 subplot(2,2,2);
-plot(X2(X2 > 0), difference_quotient_2, 'LineWidth', 2);
+plot(X2(X2>0), difference_quotient_2, 'LineWidth', 2);
 title('Pointwise Difference Quotient Between Left and Right Sides');
 xlabel('Position (cm)');
 ylabel('Difference Quotient');
@@ -1063,7 +1065,7 @@ grid on;
 
 % Plot the cross-correlation
 subplot(2,2,3);
-plot(X2(1:159), cross_corr_2, 'LineWidth', 2);
+plot(X2, CSI_2, 'LineWidth', 2);
 title('Cross-Correlation Between Right Side and Horizontal Inverted Left Side');
 xlabel('Position (cm)');
 
@@ -1085,6 +1087,7 @@ area_quotient_3 = (right_area_3-left_area_3)./(right_area_3+left_area_3);
 difference_quotient_3 = abs(right_side_3 - inverted_left_side_3) ./ max([right_side_3, inverted_left_side_3]);
 inverted_left_side_3 = flip(left_side_3); % horizontally  invert the left side
 [cross_corr_3, lag_3] = xcorr(right_side_3, inverted_left_side_3,'normalized');
+[CSI_3,lags_3] = high_intensity_CSI(right_side_3, inverted_left_side_3, .80,length(X3(X3>0)))
 signal1_2d = reshape(right_side_3, 1, []);
 signal2_2d = reshape(inverted_left_side_3, 1 ,[]);
 ssimValue_3 = ssim(signal1_2d, signal2_2d , 'exp', [1,1, 1])
@@ -1109,7 +1112,7 @@ grid on;
 
 % Plot the cross-correlation
 subplot(2,2,3);
-plot(X3(1:169), cross_corr_3, 'LineWidth', 2);
+plot(X3, CSI_3, 'LineWidth', 2);
 title('Cross-Correlation Between Right Side and Horizontal Inverted Left Side');
 xlabel('Position (cm)');
 
@@ -1123,3 +1126,275 @@ xlabel('Position (cm)');
 ylabel('Normalized Dose');
 title('inverted left vs right beam profile')
 grid on;
+%% obtain tolerance for CSI
+clc;
+clear;
+close all;
+
+% Define beam profile size
+profile_size = 200;
+x = linspace(-100, 100, profile_size);
+
+% Generate a symmetric Gaussian beam profile
+sigma = 20;
+center = 0;
+beam_profile = exp(-((x-center).^2) / (2 * sigma^2));
+
+% Introduce asymmetry for PDQ and area-based index
+asymmetry_factor_pdq = 0.02;
+asymmetry_factor_area = 0.062;%0.062
+;
+
+% Create a left and right profile
+left_profile = beam_profile(1:profile_size/2);
+right_profile = beam_profile(profile_size/2+1:end);
+
+% Introduce PDQ asymmetry (2%)
+left_profile = left_profile * (1 - asymmetry_factor_pdq);
+right_profile = right_profile * (1 + asymmetry_factor_pdq);
+
+% Introduce area-based asymmetry (3%)
+left_area = sum(left_profile);
+right_area = sum(right_profile);
+scaling_factor = (1 + asymmetry_factor_area) * left_area / right_area;
+right_profile = right_profile * scaling_factor;
+
+% Combine left and right profiles
+sym_profile = [left_profile, right_profile];
+
+% Calculate PDQ
+pdq = max(abs(left_profile - flip(right_profile))) / max(sym_profile) * 100;
+fprintf('PDQ: %.2f%%\n', pdq);
+
+[csi, lag]  = high_intensity_CSI(flip(left_profile), right_profile, .80, 100)
+fprintf('CSI: %.2f%%\n', csi(lag==0));
+
+ssimValue_2 = ssim(left_profile,  flip(right_profile), 'exp', [1,1, 1])
+
+% Calculate Area-Based Symmetry Index
+area_left = sum(left_profile);
+area_right = sum(right_profile);
+area_symmetry = abs(area_left - area_right) / (area_left + area_right) * 100;
+fprintf('Area-Based Symmetry Index: %.2f%%\n', area_symmetry);
+
+% Plot the final beam profile
+figure;
+plot(x, sym_profile, 'LineWidth', 2);
+hold on;
+plot(x(1:profile_size/2), left_profile, '--', 'LineWidth', 1.5);
+plot(x(profile_size/2+1:end), right_profile, '--', 'LineWidth', 1.5);
+hold off;
+title(sprintf('Beam Profile (PDQ = %.2f%%, Area-Based = %.2f%%, CSI=%.2f%%)', pdq, area_symmetry,csi(lag==0)));
+xlabel('Position');
+ylabel('Intensity');
+legend('Combined Profile', 'Left Profile', 'Right Profile');
+grid on;
+
+%%
+clc;
+clear;
+close all;
+
+% Define beam profile parameters
+profile_size = 200;
+x = linspace(-100, 100, profile_size);
+
+% Create a symmetric Gaussian beam profile as the base
+sigma = 20;
+center = 0;
+beam_profile = exp(-((x-center).^2) / (2 * sigma^2));
+
+% Split the profile into left and right halves
+left_profile = beam_profile(1:profile_size/2);
+right_profile = beam_profile(profile_size/2+1:end);
+
+% Adjust the right profile to achieve the exact area and PDQ metrics
+target_pdq = 0.05;
+target_area = 0.062;
+
+% Apply PDQ asymmetry (2%)
+max_intensity = max(beam_profile);
+left_profile = left_profile * (1 - target_pdq);
+right_profile = right_profile * (1 + target_pdq);
+
+% Calculate current areas
+area_left = sum(left_profile);
+area_right = sum(right_profile);
+
+% Scale right side to achieve the exact area difference
+scaling_factor = (1 + target_area) * area_left / area_right;
+right_profile = right_profile * scaling_factor;
+
+% Recombine the profiles
+final_profile = [left_profile, right_profile];
+
+% Calculate actual PDQ
+pdq_actual = max(abs(left_profile - flip(right_profile))) / max(final_profile) * 100;
+
+% Calculate actual Area-Based Symmetry Index
+area_left_final = sum(left_profile);
+area_right_final = sum(right_profile);
+area_symmetry_actual = abs(area_left_final - area_right_final) / (area_left_final + area_right_final) * 100;
+
+% Print the results
+fprintf('Target PDQ: %.2f%%, Actual PDQ: %.2f%%\n', target_pdq*100, pdq_actual);
+fprintf('Target Area Symmetry: %.2f%%, Actual Area Symmetry: %.2f%%\n', target_area*100, area_symmetry_actual);
+
+% Plot the final beam profile
+figure;
+plot(x, final_profile, 'LineWidth', 2);
+hold on;
+plot(x(1:profile_size/2), left_profile, '--', 'LineWidth', 1.5);
+plot(x(profile_size/2+1:end), right_profile, '--', 'LineWidth', 1.5);
+hold off;
+title(sprintf('Beam Profile (PDQ = %.2f%%, Area = %.2f%%)', pdq_actual, area_symmetry_actual));
+xlabel('Position');
+ylabel('Intensity');
+legend('Combined Profile', 'Left Profile', 'Right Profile');
+grid on;
+%%
+clc;
+clear;
+close all;
+
+% Define beam profile parameters
+profile_size = 200;
+x = linspace(-100, 100, profile_size);
+sigma = 20;
+center = 0;
+
+% Create a symmetric Gaussian beam profile as the initial guess
+initial_profile = exp(-((x-center).^2) / (2 * sigma^2));
+initial_profile = initial_profile / max(initial_profile);  % Normalize
+
+% Target PDQ and area-based metrics
+target_pdq = 0.02;
+target_area = 0.03;
+
+% Create a Gaussian kernel
+gaussian_kernel = exp(-((x-center).^2) / (2 * sigma^2));
+gaussian_kernel = gaussian_kernel / sum(gaussian_kernel);
+
+% Create a rectangular function to simulate a flattened top
+rect_width = 100;
+rect_kernel = zeros(1, profile_size);
+rect_kernel(abs(x) < rect_width / 2) = 1;
+rect_kernel = rect_kernel / sum(rect_kernel);
+
+% Convolve to create a realistic beam shape constraint
+target_shape = conv(gaussian_kernel, rect_kernel, 'same');
+target_shape = target_shape / max(target_shape);
+
+% Objective function: Minimize deviation from target PDQ and area-based metric
+function cost = beam_cost(profile, target_pdq, target_area, target_shape)
+    n = length(profile);
+    left_profile = profile(1:n/2);
+    right_profile = profile(n/2+1:end);
+
+    % PDQ calculation
+    pdq_actual = max(abs(left_profile - flip(right_profile))) / max(profile) * 100;
+    
+    % Area-based symmetry calculation
+    area_left = sum(left_profile);
+    area_right = sum(right_profile);
+    area_symmetry_actual = abs(area_left - area_right) / (area_left + area_right) * 100;
+    
+    % Shape similarity constraint
+    shape_similarity = sum((profile - target_shape).^2);
+    
+    % Cost as squared deviation from target with shape penalty
+    cost = 50*(pdq_actual - target_pdq * 100)^2 + ...
+           50*(area_symmetry_actual - target_area * 100)^2 + ...
+           100 * shape_similarity;
+end
+
+% Optimization settings
+options = optimoptions('fmincon', 'Display', 'iter', 'MaxFunctionEvaluations', 5000, 'Algorithm', 'interior-point');
+lb = zeros(profile_size, 1);   % Minimum intensity (zero)
+ub = ones(profile_size, 1);    % Maximum intensity (normalized)
+
+% Run the optimization
+[optimized_profile, final_cost] = fmincon(@(p) beam_cost(p, target_pdq, target_area, target_shape), ...
+                                           initial_profile, [], [], [], [], lb, ub, [], options);
+
+% Calculate final metrics
+left_final = optimized_profile(1:profile_size/2);
+right_final = optimized_profile(profile_size/2+1:end);
+final_pdq = max(abs(left_final - flip(right_final))) / max(optimized_profile) * 100;
+final_area = abs(sum(left_final) - sum(right_final)) / (sum(left_final) + sum(right_final)) * 100;
+
+% Print results
+fprintf('Final PDQ: %.2f%% (Target: %.2f%%)\n', final_pdq, target_pdq * 100);
+fprintf('Final Area-Based Symmetry: %.2f%% (Target: %.2f%%)\n', final_area, target_area * 100);
+
+% Plot the optimized beam profile
+figure;
+plot(x, optimized_profile, 'LineWidth', 2);
+hold on;
+plot(x, target_shape, '--', 'LineWidth', 1.5);
+hold off;
+title(sprintf('Optimized Beam Profile (PDQ = %.2f%%, Area = %.2f%%)', final_pdq, final_area));
+xlabel('Position');
+ylabel('Intensity');
+legend('Optimized Profile', 'Target Shape');
+grid on;
+
+
+
+function [csi, lags] = high_intensity_CSI(A, B, threshold_fraction,max_lag)
+    % Ensure A and B are the same size
+    if size(A) ~= size(B)
+        error('Inputs A and B must be the same size');
+    end
+    
+    % Flatten the inputs for 1D correlation
+    A = A(:);
+    B = B(:);
+    
+    % Calculate the 50% of maximum intensity threshold
+    max_intensity_A = max(A);
+    max_intensity_B = max(B);
+    threshold_A = threshold_fraction * max_intensity_A;
+    threshold_B = threshold_fraction * max_intensity_B;
+    
+    % Create masks for the central high-intensity regions
+    mask_A = A >= threshold_A;
+    mask_B = B >= threshold_B;
+    combined_mask = mask_A & mask_B;
+    
+    % Apply the mask to focus on high-intensity regions
+    A_high_intensity = A(combined_mask);
+    B_high_intensity = B(combined_mask);
+
+    % Define lag range
+    lags = -max_lag:max_lag;
+    bcc = zeros(length(lags), 1);
+    
+    % Calculate biased cross-correlation for each lag
+    for i = 1:length(lags)
+        lag = lags(i);
+        
+        if lag < 0
+            % Shift B to the left
+            shifted_A= A_high_intensity(1:end+lag);
+            shifted_B = B_high_intensity(-lag+1:end);
+        elseif lag > 0
+            % Shift B to the right
+            shifted_A = A_high_intensity(lag+1:end);
+            shifted_B = B_high_intensity(1:end-lag);
+        else
+            % No shift
+            shifted_A = A_high_intensity;
+            shifted_B = A_high_intensity;
+        end
+        
+    
+    % Subtract the mean
+    A_centered = A_high_intensity;
+    B_centered = B_high_intensity;
+    
+    % Calculate the biased cross-correlation
+    csi(i) = sum(shifted_A .* shifted_B) / numel(shifted_A);
+    end
+end
+
