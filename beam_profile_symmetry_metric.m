@@ -1236,6 +1236,7 @@ area_left_final = sum(left_profile);
 area_right_final = sum(right_profile);
 area_symmetry_actual = abs(area_left_final - area_right_final) / (area_left_final + area_right_final) * 100;
 
+[csi, lags] = high_intensity_CSI(flip(right_profile), left_profile, .80, 100);
 % Print the results
 fprintf('Target PDQ: %.2f%%, Actual PDQ: %.2f%%\n', target_pdq*100, pdq_actual);
 fprintf('Target Area Symmetry: %.2f%%, Actual Area Symmetry: %.2f%%\n', target_area*100, area_symmetry_actual);
@@ -1247,7 +1248,7 @@ hold on;
 plot(x(1:profile_size/2), left_profile, '--', 'LineWidth', 1.5);
 plot(x(profile_size/2+1:end), right_profile, '--', 'LineWidth', 1.5);
 hold off;
-title(sprintf('Beam Profile (PDQ = %.2f%%, Area = %.2f%%)', pdq_actual, area_symmetry_actual));
+title(sprintf('Beam Profile (PDQ = %.2f%%, Area = %.2f%%, CSI = %.2f%%)', pdq_actual, area_symmetry_actual, csi(lags==0)));
 xlabel('Position');
 ylabel('Intensity');
 legend('Combined Profile', 'Left Profile', 'Right Profile');
